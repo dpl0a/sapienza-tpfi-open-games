@@ -11,11 +11,9 @@ argmax :: (Ord a, Eq a, Listable x) => (x -> a) -> (x -> Bool)
 argmax k x = k x == maximum (map k allValues)
 
 -- A player adopting the argmax selection function
+--                                           Lens x (x -> Bool) x (x -> a)
 argmaxPlayer :: (Ord u, Eq u, Listable s) => Player s u s
 argmaxPlayer = nonPara id (\p k -> argmax k)
-
-argmaxPlayer' :: (Ord a, Eq a, Listable x) => Lens x (x -> Bool) x (x -> a)
-argmaxPlayer' = nonPara id (\p k -> argmax k)
 
 -- Oplaxator
 oplaxator :: Lens (x, x') ((x, x') -> Bool) (x, x') (x -> Bool, x' -> Bool)

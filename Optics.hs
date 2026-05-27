@@ -16,47 +16,6 @@ type CoState x s = Lens x s () ()
 
 type State = Lens () ()
 
-scalarToState :: x -> State x s
-scalarToState x = nonPara (const x) const
-
-stateToScalar :: State x s -> x
-stateToScalar (MkLens x _) = x () ()
-
-funToCostate :: (x -> s) -> CoState x s
-funToCostate f = nonPara (const ()) (\x _ -> f x)
-
-costateToFun :: CoState x s -> (x -> s)
-costateToFun (MkLens _ f) x = fst $ f () x ()
-
-paraStateTofun :: ParaLens p q () () () () -> (p -> q)
-paraStateTofun (MkLens _ coplay) p = snd $ coplay p () ()
-
-funToParaState :: (p -> q) -> ParaLens p q () () () ()
-funToParaState f = MkLens (\_ _ -> ()) (\p _ _ -> ((), f p))
-
-idLens :: Lens x s x s
-idLens = nonPara id (\_ x -> x)
-
-bwd :: (r -> s) -> Lens x s x r
-bwd f = nonPara id (\_ r -> f r)
-
-fwd :: (x -> y) -> Lens x s y s
-fwd fsharp = nonPara fsharp (\_ x -> x)
-
-adapter :: (x -> y) -> (r -> s) -> Lens x s y r
-adapter f fsharp = fwd f >--> bwd fsharp
-
--- Symmetry morphism for the monoidal category of lenses
-exchange :: Lens (x, x') (s, s') (x', x) (s', s)
-exchange = adapter swap swap
-
-corner :: ParaLens p q () () p q
-corner = MkLens const (\_ _ q -> ((), q))
-
--- Builds a full parametric lens out of two half ones
-nextto :: ParaLens p () x () y () -> ParaLens () q () s () r -> ParaLens p q x s y r
-nextto (MkLens play _) (MkLens _ coplay) = MkLens play (\_ _ r -> coplay () () r)
-
 -- ParaLens composition
 infixr 4 >>>>
 
@@ -174,3 +133,45 @@ nashator =
             k2 x' = snd $ f (x0, x')
          in (k1, k2)
     )
+
+-- Some ways to build lenses
+scalarToState :: x -> State x s
+scalarToState x = nonPara (const x) const
+
+stateToScalar :: State x s -> x
+stateToScalar (MkLens x _) = x () ()
+
+funToCostate :: (x -> s) -> CoState x s
+funToCostate f = nonPara (const ()) (\x _ -> f x)
+
+costateToFun :: CoState x s -> (x -> s)
+costateToFun (MkLens _ f) x = fst $ f () x ()
+
+paraStateTofun :: ParaLens p q () () () () -> (p -> q)
+paraStateTofun (MkLens _ coplay) p = snd $ coplay p () ()
+
+funToParaState :: (p -> q) -> ParaLens p q () () () ()
+funToParaState f = MkLens (\_ _ -> ()) (\p _ _ -> ((), f p))
+
+idLens :: Lens x s x s
+idLens = nonPara id (\_ x -> x)
+
+bwd :: (r -> s) -> Lens x s x r
+bwd f = nonPara id (\_ r -> f r)
+
+fwd :: (x -> y) -> Lens x s y s
+fwd fsharp = nonPara fsharp (\_ x -> x)
+
+adapter :: (x -> y) -> (r -> s) -> Lens x s y r
+adapter f fsharp = fwd f >--> bwd fsharp
+
+-- Symmetry morphism for the monoidal category of lenses
+exchange :: Lens (x, x') (s, s') (x', x) (s', s)
+exchange = adapter swap swap
+
+corner :: ParaLens p q () () p q
+corner = MkLens const (\_ _ q -> ((), q))
+
+-- Builds a full parametric lens out of two half ones
+nextto :: ParaLens p () x () y () -> ParaLens () q () s () r -> ParaLens p q x s y r
+nextto (MkLens play _) (MkLens _ coplay) = MkLens play (\_ _ r -> coplay () () r)
