@@ -1,0 +1,4 @@
+{
+    "haskell.manageHLS": "PATH",
+    "haskell.serverExecutablePath": "haskell-language-server-wrapper"
+  }
