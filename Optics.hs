@@ -29,6 +29,32 @@ infixr 4 >>>>
          in (s, (q, q'))
     )
 
+(->>>>) :: ParaLens p q x s y r -> ParaLens p' q' y r z t -> ParaLens (p, p') (q, q') x s z t
+l ->>>> r = undefined
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 -- Non-parametric/mixed compositions
 infixr 4 >-->
@@ -81,19 +107,6 @@ normL = nonPara ((),) (\_ (_, q) -> q)
 
 normR :: Lens p q (p, ()) (q, ())
 normR = nonPara (,()) (\_ (q, _) -> q)
-
--- Choice?
-(++++) :: ParaLens p q x s y r -> ParaLens p' q x' s y' r -> ParaLens (p, p') q (Either x x') s (Either y y') r
-(MkLens play coplay) ++++ (MkLens play' coplay') =
-  MkLens
-    ( \(p, p') xx' -> case xx' of
-        Left x -> Left $ play p x
-        Right x' -> Right $ play' p' x'
-    )
-    ( \(p, p') xx' r -> case xx' of
-        Left x -> coplay p x r
-        Right x' -> coplay' p' x' r
-    )
 
 -- Reparameterization
 infixr 5 ***

@@ -10,12 +10,44 @@ type Player profiles utility actions = Lens profiles (profiles -> Bool) actions 
 argmax :: (Ord a, Eq a, Listable x) => (x -> a) -> (x -> Bool)
 argmax k x = k x == maximum (map k allValues)
 
--- A player adopting the argmax selection function
+-- A player adopting the argmax selection function (Nash)
 --                                           Lens x (x -> Bool) x (x -> a)
 argmaxPlayer :: (Ord u, Eq u, Listable s) => Player s u s
 argmaxPlayer = nonPara id (\p k -> argmax k)
 
--- Oplaxator
+-- A player playing epsilon-Nash
+epsilonPlayer :: (Ord u, Num u, Listable s) => u -> Player s u s
+epsilonPlayer epsilon = nonPara 
+  id 
+  (\_ k -> \action -> 
+      let maxUtility = maximum (map k allValues)
+       in k action >= maxUtility - epsilon
+  )
+
+-- A player with an utility satisfaction treshold (Bounded Rationality)
+satisficingPlayer :: (Ord u) => u -> Player s u s
+satisficingPlayer tau = nonPara 
+  id 
+  (\_ k -> \action -> k action >= tau)
+
+-- A stubborn/byzantine player that always plays the same move
+stubbornPlayer :: (Eq s) => s -> Player s u s
+stubbornPlayer targetAction = nonPara 
+  id 
+  (\_ k -> \action -> action == targetAction)
+
+-- An altruistic player playing for social optimum (Pareto)
+altruisticPlayer :: (Ord u, Num u, Listable s) => Player s (u, u) s
+altruisticPlayer = nonPara 
+  id 
+  (\_ k -> \action -> 
+      let 
+          socialUtility a = myU + theirU where (myU, theirU) = k a 
+          maxSocialUtility = maximum (map socialUtility allValues)
+       in socialUtility action == maxSocialUtility
+  )
+
+-- Oplaxator, basically the equilibrium AND-gate
 oplaxator :: Lens (x, x') ((x, x') -> Bool) (x, x') (x -> Bool, x' -> Bool)
 oplaxator = nonPara id (\_ (phi, psi) (x, x') -> phi x && psi x')
 
