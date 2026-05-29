@@ -23,12 +23,11 @@ infixr 4 >>>>
 (MkLens play coplay) >>>> (MkLens play' coplay') =
   MkLens
     (\(p, p') x -> play' p' (play p x))
-    (\(p, p') x t ->
+    ( \(p, p') x t ->
         let (r, q') = coplay' p' (play p x) t
             (s, q) = coplay p x r
          in (s, (q, q'))
     )
-
 
 -- Non-parametric/mixed compositions
 infixr 4 >-->

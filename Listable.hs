@@ -7,7 +7,7 @@ instance (Listable x, Listable y) => Listable (x, y) where
   allValues :: (Listable x, Listable y) => [(x, y)]
   allValues = [(a, b) | a <- allValues, b <- allValues]
 
-buildfuns :: Eq x => [x] -> [y] -> [x -> y]
+buildfuns :: (Eq x) => [x] -> [y] -> [x -> y]
 buildfuns [] ys = [const undefined]
 buildfuns (x : xs) ys = [ext f x y | f <- buildfuns xs ys, y <- ys]
 
