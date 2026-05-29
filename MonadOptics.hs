@@ -61,24 +61,16 @@ paraRDiff (MkOptic play coplay) =
         return ((w, x), y)
     )
     ( \p (w, x) oracle -> do
-        -- Esploratore del Passato:
-        -- "Se il mondo mi avesse dato lo stato x', quale sarebbe stato il copayoff?"
         let evalPast x' = do
-              (w_sim, y_sim) <- play p x' -- Simula forward con il passato fittizio
-              r_sim <- oracle y_sim -- Interroga l'oracolo sul nuovo futuro
-              (s_sim, _) <- coplay p w_sim r_sim -- Retropropaga
+              (w_sim, y_sim) <- play p x'
+              r_sim <- oracle y_sim
+              (s_sim, _) <- coplay p w_sim r_sim
               return s_sim
-
-        -- Esploratore Strategico (Il cuore della Game Theory):
-        -- "Dato lo stato x che ho salvato, se avessi giocato p', quale sarebbe il gradiente?"
         let evalPolicy p' = do
-              (w_sim, y_sim) <- play p' x -- Simula forward con la policy fittizia (usando x vero)
-              r_sim <- oracle y_sim -- Interroga l'oracolo
-              (_, q_sim) <- coplay p' w_sim r_sim -- Retropropaga
+              (w_sim, y_sim) <- play p' x
+              r_sim <- oracle y_sim
+              (_, q_sim) <- coplay p' w_sim r_sim
               return q_sim
-
-        -- Restituiamo le due closure pronte per essere chiamate dall'esterno.
-        -- Poiché il tipo atteso è m (x -> m s, p -> m q), usiamo un semplice return.
         return (evalPast, evalPolicy)
     )
 
