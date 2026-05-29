@@ -1,6 +1,6 @@
 
 {-# LANGUAGE FlexibleContexts #-}
-module Main where
+module Learning where
 
 import Optics
 import qualified Graphics.Rendering.Chart.Easy as Ez

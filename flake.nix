@@ -16,7 +16,6 @@
         let
           pkgs = nixpkgsFor.${system};
           
-          # Definiamo GHC con le librerie richieste
           myGhc = pkgs.haskellPackages.ghcWithPackages (p: with p; [
             Chart
             Chart-cairo
@@ -25,19 +24,15 @@
         {
           default = pkgs.mkShell {
             buildInputs = [
-              myGhc                    # GHC con Chart e Chart-cairo inclusi
+              myGhc
               pkgs.haskell-language-server
               pkgs.hlint
               pkgs.git
-              # Cairo ha bisogno di dipendenze di sistema per compilare/girare
               pkgs.cairo
               pkgs.pango
               pkgs.pkg-config
+              pkgs.tree
             ];
-
-            shellHook = ''
-              echo "Haskell environment con Chart & Cairo caricato!"
-            '';
           };
         });
     };
