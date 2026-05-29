@@ -29,32 +29,6 @@ infixr 4 >>>>
          in (s, (q, q'))
     )
 
-(->>>>) :: ParaLens p q x s y r -> ParaLens p' q' y r z t -> ParaLens (p, p') (q, q') x s z t
-l ->>>> r = undefined
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 -- Non-parametric/mixed compositions
 infixr 4 >-->
