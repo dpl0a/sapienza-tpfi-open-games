@@ -137,29 +137,28 @@ monadOplaxator :: (Monad m) => MonadOptic m (x, x') ((x, x') -> Bool) (x, x') (x
 monadOplaxator = monadNonPara return (\_ (phi, psi) -> return (\(x, x') -> phi x && psi x'))
 
 data Context m x y r where
-  MkContext :: Ord theta => m (theta, x) -> (theta -> y -> m r) -> Context m x y r
+  MkContext :: Ord theta => m (theta, x) -> (x -> m theta) -> (theta -> y -> m r) -> Context m x y r
 
 class (Monad m) => MonadCondition m where
-  condition :: (Eq x, Ord theta) => m (theta, x) -> x -> m theta
+  condition :: (Eq x, Ord theta) => m (theta, x) -> m theta -> x -> m theta
 
--- `m` is the monad, `u` is the utility type
 class (Monad m) => MonadEvaluate m u where
   evaluate :: m u -> u
 
 expectedUtility :: (MonadCondition m, MonadEvaluate m u, Eq x) => Context m x y u -> x -> y -> u
-expectedUtility (MkContext p k) x y =
-  let posterior = condition p x
+expectedUtility (MkContext p fallback k) x y =
+  let posterior = condition p (fallback x) x
    in evaluate $ do
         theta <- posterior
         k theta y
 
-instance MonadCondition Identity where
-  condition :: (Eq x, Ord theta) => Identity (theta, x) -> x -> Identity theta
-  condition (Identity (theta, _)) _ = return theta
-
-instance MonadEvaluate Identity x where
-  evaluate :: Identity x -> x
-  evaluate (Identity x) = x
+instance MonadCondition (Dist.T Double) where
+  condition :: (Eq x, Ord theta) => Dist.T Double (theta, x) -> Dist.T Double theta -> x -> Dist.T Double theta
+  condition prior fallback obs = 
+    let filtered = Dist.filter (\(_, x) -> x == obs) prior
+     in if null (Dist.decons filtered)
+          then fallback
+          else Dist.norm $ fmap fst filtered
 
 instance MonadEvaluate (Dist.T Double) Double where
   evaluate :: Dist.T Double Double -> Double
@@ -169,22 +168,13 @@ instance MonadEvaluate (Dist.T Double) Bool where
   evaluate :: Dist.T Double Bool -> Bool
   evaluate dist = Dist.expected (fmap (\b -> if b then 1.0 else 0.0) dist) > 0.5
 
-instance MonadCondition (Dist.T Double) where
-  condition :: (Eq x, Ord theta) => Dist.T Double (theta, x) -> x -> Dist.T Double theta
-  condition prior obs = Dist.norm $ Dist.filter (\(theta, x) -> x == obs) prior >>= \(theta, _) -> return theta
+instance MonadEvaluate Identity x where
+  evaluate :: Identity x -> x
+  evaluate (Identity x) = x
 
-instance MonadEvaluate BayesEnum.Enumerator Double where
-  evaluate :: BayesEnum.Enumerator Double -> Double
-  evaluate dist = 
-    let marginals = BayesEnum.enumerate dist
-     in sum [ val * prob | (val, prob) <- marginals ]
-
-instance MonadCondition BayesEnum.Enumerator where
-  condition :: (Eq x, Ord theta) => BayesEnum.Enumerator (theta, x) -> x -> BayesEnum.Enumerator theta
-  condition prior obs = do
-    (theta, x) <- prior
-    Bayes.condition (x == obs)
-    return theta
+instance MonadCondition Identity where
+  condition :: (Eq x, Ord theta) => Identity (theta, x) -> Identity theta -> x -> Identity theta
+  condition (Identity (theta, _)) _ _ = return theta
 
 type MonadPlayer m profiles utility actions = MonadOptic m profiles (profiles -> Bool) actions (actions -> m utility)
 
@@ -269,22 +259,41 @@ plugExPost prior k (MkOptic play coplay) = MkOptic
   )
 
 plugInterim 
-  :: (MonadCondition m, Eq x, Ord theta) 
+  :: (MonadCondition m, Eq obs, Ord theta) 
   => m (theta, x) 
+  -> (obs -> m theta)  -- Credenze off-path di fallback
+  -> (y -> obs)        -- Estrattore dell'osservazione
+  -> (r -> r -> r)     -- [NUOVO] Combinatore: r_actual -> r_post -> r_merged
   -> (theta -> y -> m r)
   -> ParaMonadOptic m p (p -> m q) x (x -> m s) y (y -> m r) 
   -> ParaMonadOptic m p (p -> m q) () (() -> m ()) () (() -> m ())
-plugInterim prior k (MkOptic play coplay) = MkOptic
+plugInterim prior fallback getObs mergePayoffs k (MkOptic play coplay) = MkOptic
   (\p () -> do
       (theta, x) <- prior
-      (w, _y) <- play p x 
-      return ((x, w), ()) 
+      (w, y) <- play p x 
+      return ((theta, w), ()) 
   )
-  (\p (x, w) _dummyOracle -> do
+  (\p (theta_actual, w) _dummyOracle -> do
+      let jointThetaObs = do
+            (theta_p, x_p) <- prior
+            (_, y_p) <- play p x_p
+            return (theta_p, getObs y_p)
+
       let bayesianOracle y_sim = do
-            theta_post <- condition prior x
-            k theta_post y_sim
+            let obs_sim = getObs y_sim
+            let theta_post = condition jointThetaObs (fallback obs_sim) obs_sim
             
+            -- Calcoliamo il payoff oggettivo (es. per il Sender)
+            r_actual <- k theta_actual y_sim
+            
+            -- Calcoliamo il payoff percepito (es. per il Receiver)
+            r_post <- do
+              t_post <- theta_post
+              k t_post y_sim
+              
+            -- Uniamo i due mondi mantenendo il tipo r opaco
+            return (mergePayoffs r_actual r_post)
+
       (_s_diff, q_diff) <- coplay p w bayesianOracle
       return ((\() -> return ()), q_diff)
   )
