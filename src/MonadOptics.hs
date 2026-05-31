@@ -282,16 +282,10 @@ plugInterim prior fallback getObs mergePayoffs k (MkOptic play coplay) = MkOptic
       let bayesianOracle y_sim = do
             let obs_sim = getObs y_sim
             let theta_post = condition jointThetaObs (fallback obs_sim) obs_sim
-            
-            -- Calcoliamo il payoff oggettivo (es. per il Sender)
             r_actual <- k theta_actual y_sim
-            
-            -- Calcoliamo il payoff percepito (es. per il Receiver)
             r_post <- do
               t_post <- theta_post
               k t_post y_sim
-              
-            -- Uniamo i due mondi mantenendo il tipo r opaco
             return (mergePayoffs r_actual r_post)
 
       (_s_diff, q_diff) <- coplay p w bayesianOracle
