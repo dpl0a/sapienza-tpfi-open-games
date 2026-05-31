@@ -12,8 +12,6 @@ instance Listable Type where allValues = [High, Low]
 instance Listable Signal where allValues = [Costly, Cheap]
 instance Listable Action where allValues = [Hire, Reject]
 
--- 1. Il Sender riceve il tipo, sceglie il segnale e passa la coppia (Type, Signal) a valle.
---    Nel backward pass, propaga semplicemente il payoff Double ricevuto dall'alto.
 senderArena :: Monad m => ParaMonadOptic m (Type -> Signal) Double Type () (Type, Signal) Double
 senderArena = MkOptic
   (\strat trueType -> do
@@ -22,8 +20,6 @@ senderArena = MkOptic
   )
   (\strat () uS -> return ((), uS))
 
--- 2. Arena unica per il Receiver. La sua strategia p' è la funzione (Signal -> Action).
---    Questo forza la valutazione sequenziale su TUTTI i segnali del dominio, on-path e off-path.
 receiverArena :: Monad m => ParaMonadOptic m (Signal -> Action) Double (Type, Signal) Double (Type, Signal, Action) (Double, Double)
 receiverArena = MkOptic
   (\strat (trueType, sig) -> do
@@ -32,8 +28,6 @@ receiverArena = MkOptic
   )
   (\strat () (uS, uR) -> return (uS, uR))
 
--- 3. Composizione sequenziale diretta tramite >>>>. 
---    Non serve più collapseOptic perché i tipi combaciano nativamente.
 gameArena :: Monad m => ParaMonadOptic m 
   (Type -> Signal, Signal -> Action)     
   (Double, Double)             
@@ -43,8 +37,6 @@ gameArena :: Monad m => ParaMonadOptic m
   (Double, Double)                       
 gameArena = senderArena >>>> receiverArena
 
--- 4. Composizione dei giocatori: ora abbiamo 2 macro-agenti (Sender e Receiver).
---    La tupla dei profili diventa (Type -> Signal, Signal -> Action).
 players :: (Monad m, MonadEvaluate m Double) 
         => MonadPlayer m (Type -> Signal, Signal -> Action) 
                          (Double, Double) 
