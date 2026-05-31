@@ -19,6 +19,10 @@
           myGhc = pkgs.haskellPackages.ghcWithPackages (p: with p; [
             Chart
             Chart-cairo
+            probability
+            monad-bayes
+            log-domain
+            random
           ]);
         in
         {
