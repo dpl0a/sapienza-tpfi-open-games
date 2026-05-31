@@ -186,61 +186,6 @@ instance MonadCondition BayesEnum.Enumerator where
     Bayes.condition (x == obs)
     return theta
 
-plugExPost 
-  :: Monad m 
-  => ParaMonadOptic m p q x s y r
-  -> Context m x y r
-  -> (p -> m q)
-plugExPost (MkOptic play coplay) (MkContext prior continuation) = \p -> do
-    (theta, x) <- prior
-    (w, y) <- play p x
-    r <- continuation theta y
-    (s, q) <- coplay p w r
-    return q
-
-plugExAnte
-  :: (MonadCondition m, Eq x)
-  => ParaMonadOptic m p q x s y r
-  -> Context m x y r
-  -> (p -> m q)
-plugExAnte (MkOptic play coplay) (MkContext prior continuation) = \p -> do
-    (_, x) <- prior    
-    (w, y) <- play p x    
-    theta_post <- condition prior x    
-    r <- continuation theta_post y    
-    (s, q) <- coplay p w r
-    return q
-
--- Takes an already composed arena+player pair (Player *** paraRDiff Arena)
-paraPlugExPost
-  :: Monad m 
-  => ParaMonadOptic m p q x s y (y -> m r)
-  -> Context m x y r
-  -> (p -> m q)
-paraPlugExPost (MkOptic play coplay) (MkContext prior continuation) = \p -> do
-    (theta, x) <- prior
-    (w, y) <- play p x
-    let oracle = continuation theta
-    (_, q) <- coplay p w oracle
-    return q
-
-paraPlugExAnte
-  :: MonadCondition m => Eq x
-  => ParaMonadOptic m p q x s y (y -> m r) 
-  -> Context m x y r 
-  -> (p -> m q)
-paraPlugExAnte (MkOptic play coplay) (MkContext prior continuation) = \p -> do
-    (_, x) <- prior 
-    (w, y) <- play p x
-    
-    let bayesianOracle y_sim = do
-          theta_post <- condition prior x
-          continuation theta_post y_sim
-          
-    (_, q) <- coplay p w bayesianOracle
-    return q
-
-
 -- Il giocatore riceve un profilo, produce un'azione, osserva un'utilità (monadica) e restituisce un Bool (es. è un equilibrio?)
 -- Il Player invece si aspetta la funzione di utilità differenziata 
 -- (a -> m u) come input nel backward pass
@@ -275,66 +220,128 @@ argmaxPlayer = monadNonPara
        in expectedUtility action == maxUtility
   ))
 
+-- ============================================================================
+-- TOPOLOGIA E CHIUSURA DEI GIOCHI
+-- ============================================================================
 
-monadPack 
-  :: (MonadCondition m, Eq x)
-  => MonadGame m p a u x s y r 
-  -> Context m x y r 
-  -> (p -> m (p -> Bool))
-monadPack (MkMonadGame player arena) ctx = 
-  let
-      diffArena = paraRDiff arena 
-      composedGame = player *** diffArena   
-   in paraPlugExAnte composedGame ctx
-
-monadEquilibria 
-  :: (MonadCondition m, MonadEvaluate m Bool, Eq x, Listable p) 
-  => MonadGame m p a u x s y r 
-  -> Context m x y r 
-  -> [p]
-monadEquilibria game ctx =
-    let selectionFunc = monadPack game ctx
-    in filter (\p -> 
-         evaluate $ do
-           isEqPredicate <- selectionFunc p
-           return (isEqPredicate p)
-       ) allValues
-
--- Il filo di identità per scavalcare l'arena
+-- Il "filo" per far scavalcare theta all'Arena
 monadIdOptic :: (Monad m) => MonadOptic m t t t t
-monadIdOptic = monadNonPara 
-  return 
-  (\_ r -> return r)
+monadIdOptic = monadNonPara return (\_ r -> return r)
 
--- L'ottica della Natura (assorbe il ritorno)
+-- ----------------------------------------------------------------------------
+-- STRUMENTI PER EX-ANTE: Chiudere prima di differenziare
+-- ----------------------------------------------------------------------------
+
 priorOptic :: (Monad m) => m (theta, x) -> MonadOptic m () () (theta, x) (theta, s)
 priorOptic prior = monadNonPara 
   (\() -> prior)
-  (\() (theta, s) -> return ())
+  (\() _ -> return ()) -- Assorbe e scarta (theta, s)
 
--- L'ottica dei Payoff (rimbalza theta)
 payoffOptic :: (Monad m) => (theta -> y -> m r) -> MonadOptic m (theta, y) (theta, r) () ()
 payoffOptic k = monadNonPara 
   (\_ -> return ())
   (\(theta, y) () -> do
       r <- k theta y
-      return (theta, r)
+      return (theta, r) -- Rimbalza indietro r con theta
   )
 
--- Chiusura pura (Prior + ArenaLiftata + Payoff)
-pureClosedGame :: Monad m 
-               => m (theta, x) 
-               -> ParaMonadOptic m p q x s y r 
-               -> (theta -> y -> m r) 
-               -> ParaMonadOptic m p q () () () ()
-pureClosedGame prior arena k = 
-  priorOptic prior >->> (monadIdOptic #-## arena) >>-> payoffOptic k
+plugExAnte 
+  :: (Monad m) 
+  => m (theta, x) 
+  -> (theta -> y -> m r)
+  -> ParaMonadOptic m p q x s y r 
+  -> ParaMonadOptic m p (p -> m q) () (() -> m ()) () (() -> m ())
+plugExAnte prior k arena = 
+  paraRDiff (priorOptic prior >->> (monadIdOptic #-## arena) >>-> payoffOptic k)
 
--- Esecutore di un gioco completamente chiuso e differenziato
-runClosedGame :: (Monad m) 
-              => ParaMonadOptic m p q () (() -> m ()) () (() -> m ()) 
-              -> (p -> m q)
-runClosedGame (MkOptic play coplay) p = do
-    (w, _) <- play p ()
-    (_, q) <- coplay p w (\() -> return ())
-    return q
+-- ----------------------------------------------------------------------------
+-- STRUMENTI PER EX-POST: Differenziare prima di chiudere
+-- ----------------------------------------------------------------------------
+
+priorOpticDiff :: (Monad m) => m (theta, x) -> MonadOptic m () () (theta, x) (theta, x -> m s)
+priorOpticDiff prior = monadNonPara 
+  (\() -> prior)
+  (\() _ -> return ()) -- Assorbe il gradiente (theta, x -> m s) e lo scarta
+
+payoffOpticDiff :: (Monad m) => (theta -> y -> m r) -> MonadOptic m (theta, y) (theta, y -> m r) () ()
+payoffOpticDiff k = monadNonPara 
+  (\_ -> return ())
+  (\(theta, _) () -> 
+      -- Il trucco magico: passiamo all'indietro una funzione oracolo 'y_sim -> m r'.
+      -- Questa funzione contiene theta nella sua closure (lexical scope), 
+      -- quindi l'oracolo userà sempre il theta di QUESTO specifico forward pass!
+      return (theta, \y_sim -> k theta y_sim)
+  )
+
+-- ============================================================================
+-- I PLUG INTERIM ED EX-POST (Prendono un'Arena già differenziata)
+-- ============================================================================
+
+-- 1. EX-POST PURO (Onniscienza: l'oracolo usa il theta vero)
+plugExPost 
+  :: (Monad m) 
+  => m (theta, x) 
+  -> (theta -> y -> m r)
+  -> ParaMonadOptic m p (p -> m q) x (x -> m s) y (y -> m r) 
+  -> ParaMonadOptic m p (p -> m q) () (() -> m ()) () (() -> m ())
+plugExPost prior k (MkOptic play coplay) = MkOptic
+  (\p () -> do
+      (theta, x) <- prior
+      (w, _y) <- play p x 
+      return ((theta, w), ()) 
+  )
+  (\p (theta, w) _dummyOracle -> do
+      let omniscientOracle y_sim = k theta y_sim
+      (_s_diff, q_diff) <- coplay p w omniscientOracle
+      return ((\() -> return ()), q_diff)
+  )
+
+-- 2. INTERIM BAYESIANO (Il tuo Context! L'oracolo usa MonadCondition)
+plugInterim 
+  :: (MonadCondition m, Eq x, Ord theta) 
+  => m (theta, x) 
+  -> (theta -> y -> m r)
+  -> ParaMonadOptic m p (p -> m q) x (x -> m s) y (y -> m r) 
+  -> ParaMonadOptic m p (p -> m q) () (() -> m ()) () (() -> m ())
+plugInterim prior k (MkOptic play coplay) = MkOptic
+  (\p () -> do
+      (theta, x) <- prior
+      (w, _y) <- play p x 
+      return ((x, w), ()) 
+  )
+  (\p (x, w) _dummyOracle -> do
+      let bayesianOracle y_sim = do
+            theta_post <- condition prior x
+            k theta_post y_sim
+            
+      (_s_diff, q_diff) <- coplay p w bayesianOracle
+      return ((\() -> return ()), q_diff)
+  )
+
+-- ----------------------------------------------------------------------------
+-- ESECUZIONE
+-- ----------------------------------------------------------------------------
+
+-- ----------------------------------------------------------------------------
+-- ESECUZIONE
+-- ----------------------------------------------------------------------------
+
+solveGame 
+  :: (MonadEvaluate m Bool, Listable p) 
+  => MonadOptic m p (p -> Bool) p (p -> m q)                             
+  -> ParaMonadOptic m p (p -> m q) () (() -> m ()) () (() -> m ())       
+  -> [p]
+solveGame players pluggedUniverse =
+    let 
+        composedGame = players *** pluggedUniverse
+        
+        selectionFunc p = case composedGame of
+          MkOptic play coplay -> do
+            (w, _) <- play p ()
+            (_, isEq) <- coplay p w (\() -> return ())
+            return isEq
+
+    in filter (\p -> evaluate $ do
+           isEqPredicate <- selectionFunc p
+           return (isEqPredicate p)
+       ) allValues
