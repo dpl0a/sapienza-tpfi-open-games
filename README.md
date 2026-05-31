@@ -8,7 +8,7 @@ Per installare Nix, si consiglia di utilizzare il [Determinate Nix Installer](ht
 
 Una volta installato Nix, per attivare la devshell basta utilizzare il comando `nix develop`. Al primo avvio della devshell ci vorrà qualche minuto per scaricare le dipendenze.
 
-Si consiglia inoltre di installare e utilizzare [direnv](https://direnv.net/) e abilitare la gestione automatica dell'ambiente di sviluppo con `direnv allow`. Se usate `vscode` o `emacs`, l'estensione nativa di `direnv` per il vostro editor vi consentirà di utilizzare il language server.
+Si consiglia inoltre di installare e utilizzare [direnv](https://direnv.net/) e abilitare la gestione automatica dell'ambiente di sviluppo con `direnv allow`. Se usate `vscode` o `emacs`, l'estensione nativa di `direnv` per il vostro editor vi consentirà di utilizzare il language server, se usate `vim`/`nvim`, `helix` o qualsiasi altro editor da terminale con supporto per LSP, vi basterà aprire l'editor dopo aver attivato la devshell.
 
 ## Risorse aggiuntive
 ### Game Theory Base
