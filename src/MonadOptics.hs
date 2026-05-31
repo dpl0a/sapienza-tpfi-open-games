@@ -186,9 +186,6 @@ instance MonadCondition BayesEnum.Enumerator where
     Bayes.condition (x == obs)
     return theta
 
--- Il giocatore riceve un profilo, produce un'azione, osserva un'utilità (monadica) e restituisce un Bool (es. è un equilibrio?)
--- Il Player invece si aspetta la funzione di utilità differenziata 
--- (a -> m u) come input nel backward pass
 type MonadPlayer m profiles utility actions = MonadOptic m profiles (profiles -> Bool) actions (actions -> m utility)
 
 infixr 4 ##
@@ -198,8 +195,6 @@ infixr 4 ##
      -> MonadPlayer m (s, s') (u, u') (a, a')
 player ## player' = monadOplaxator >--> (player #--# player') >--> monadNashator
 
--- L'Arena "nuda" non sa nulla di funzioni di utilità: 
--- il parametro 'u' è lo scalare (es. Double)
 type MonadArena m actions utility states copayoffs moves payoffs = 
     ParaMonadOptic m actions utility states copayoffs moves payoffs
 
@@ -209,8 +204,6 @@ data MonadGame m profiles actions utility states copayoffs moves payoffs where
     MonadArena m actions utility states copayoffs moves payoffs ->
     MonadGame m profiles actions utility states copayoffs moves payoffs
 
-
--- Un giocatore che massimizza l'utilità attesa
 argmaxPlayer :: (Monad m, MonadEvaluate m u, Ord u, Eq u, Listable s) => MonadPlayer m s u s
 argmaxPlayer = monadNonPara 
   return 
@@ -220,29 +213,20 @@ argmaxPlayer = monadNonPara
        in expectedUtility action == maxUtility
   ))
 
--- ============================================================================
--- TOPOLOGIA E CHIUSURA DEI GIOCHI
--- ============================================================================
-
--- Il "filo" per far scavalcare theta all'Arena
 monadIdOptic :: (Monad m) => MonadOptic m t t t t
 monadIdOptic = monadNonPara return (\_ r -> return r)
-
--- ----------------------------------------------------------------------------
--- STRUMENTI PER EX-ANTE: Chiudere prima di differenziare
--- ----------------------------------------------------------------------------
 
 priorOptic :: (Monad m) => m (theta, x) -> MonadOptic m () () (theta, x) (theta, s)
 priorOptic prior = monadNonPara 
   (\() -> prior)
-  (\() _ -> return ()) -- Assorbe e scarta (theta, s)
+  (\() _ -> return ())
 
 payoffOptic :: (Monad m) => (theta -> y -> m r) -> MonadOptic m (theta, y) (theta, r) () ()
 payoffOptic k = monadNonPara 
   (\_ -> return ())
   (\(theta, y) () -> do
       r <- k theta y
-      return (theta, r) -- Rimbalza indietro r con theta
+      return (theta, r)
   )
 
 plugExAnte 
@@ -254,10 +238,6 @@ plugExAnte
 plugExAnte prior k arena = 
   paraRDiff (priorOptic prior >->> (monadIdOptic #-## arena) >>-> payoffOptic k)
 
--- ----------------------------------------------------------------------------
--- STRUMENTI PER EX-POST: Differenziare prima di chiudere
--- ----------------------------------------------------------------------------
-
 priorOpticDiff :: (Monad m) => m (theta, x) -> MonadOptic m () () (theta, x) (theta, x -> m s)
 priorOpticDiff prior = monadNonPara 
   (\() -> prior)
@@ -267,17 +247,9 @@ payoffOpticDiff :: (Monad m) => (theta -> y -> m r) -> MonadOptic m (theta, y) (
 payoffOpticDiff k = monadNonPara 
   (\_ -> return ())
   (\(theta, _) () -> 
-      -- Il trucco magico: passiamo all'indietro una funzione oracolo 'y_sim -> m r'.
-      -- Questa funzione contiene theta nella sua closure (lexical scope), 
-      -- quindi l'oracolo userà sempre il theta di QUESTO specifico forward pass!
       return (theta, \y_sim -> k theta y_sim)
   )
 
--- ============================================================================
--- I PLUG INTERIM ED EX-POST (Prendono un'Arena già differenziata)
--- ============================================================================
-
--- 1. EX-POST PURO (Onniscienza: l'oracolo usa il theta vero)
 plugExPost 
   :: (Monad m) 
   => m (theta, x) 
@@ -296,7 +268,6 @@ plugExPost prior k (MkOptic play coplay) = MkOptic
       return ((\() -> return ()), q_diff)
   )
 
--- 2. INTERIM BAYESIANO (Il tuo Context! L'oracolo usa MonadCondition)
 plugInterim 
   :: (MonadCondition m, Eq x, Ord theta) 
   => m (theta, x) 
@@ -317,14 +288,6 @@ plugInterim prior k (MkOptic play coplay) = MkOptic
       (_s_diff, q_diff) <- coplay p w bayesianOracle
       return ((\() -> return ()), q_diff)
   )
-
--- ----------------------------------------------------------------------------
--- ESECUZIONE
--- ----------------------------------------------------------------------------
-
--- ----------------------------------------------------------------------------
--- ESECUZIONE
--- ----------------------------------------------------------------------------
 
 solveGame 
   :: (MonadEvaluate m Bool, Listable p) 

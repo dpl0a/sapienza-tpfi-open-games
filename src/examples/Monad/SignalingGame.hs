@@ -4,10 +4,6 @@ import MonadOptics
 import Listable
 import qualified Numeric.Probability.Distribution as Dist
 
--- ============================================================================
--- 1. DOMINIO E TIPI
--- ============================================================================
-
 data Type = High | Low deriving (Eq, Ord, Show)
 data Signal = Costly | Cheap deriving (Eq, Ord, Show)
 data Action = Hire | Reject deriving (Eq, Ord, Show)
@@ -15,10 +11,6 @@ data Action = Hire | Reject deriving (Eq, Ord, Show)
 instance Listable Type where allValues = [High, Low]
 instance Listable Signal where allValues = [Costly, Cheap]
 instance Listable Action where allValues = [Hire, Reject]
-
--- ============================================================================
--- 2. LE ARENE LOCALI
--- ============================================================================
 
 senderArena :: Monad m => ParaMonadOptic m (Type -> Signal) Double Type () (Type, Signal) Double
 senderArena = MkOptic
@@ -32,10 +24,6 @@ receiverArena = MkOptic
 
 gameArena :: Monad m => ParaMonadOptic m (Type -> Signal, Signal -> Action) (Double, Double) Type () (Type, Signal, Action) (Double, Double)
 gameArena = senderArena >>>> receiverArena
-
--- ============================================================================
--- 3. NATURA E PAYOFF
--- ============================================================================
 
 prior :: Dist.T Double (Type, Type)
 prior = Dist.uniform [(High, High), (Low, Low)]
@@ -59,30 +47,18 @@ payoffs trueType (_, sig, act) = return (uS, uR)
 
     uS = reward - cost
 
--- ============================================================================
--- 4. GIOCATORI
--- ============================================================================
-
 players :: (Monad m, MonadEvaluate m Double) 
         => MonadPlayer m (Type -> Signal, Signal -> Action) (Double, Double) (Type -> Signal, Signal -> Action)
 players = argmaxPlayer ## argmaxPlayer
 
--- ============================================================================
--- 5. ESECUZIONE (I Tre Plug)
--- ============================================================================
-
--- Preparazione: differenziamo l'Arena (serve per Ex-Post e Interim)
--- Non serve annotare il tipo, Haskell lo inferisce perfettamente da gameArena.
+gameArenaDiff :: ParaMonadOptic   (Dist.T Double)   (Type -> Signal, Signal -> Action)   ((Type -> Signal, Signal -> Action)    -> Dist.T Double (Double, Double))   Type   (Type -> Dist.T Double ())   (Type, Signal, Action)   ((Type, Signal, Action) -> Dist.T Double (Double, Double))
 gameArenaDiff = paraRDiff gameArena
 
--- A. Equilibrio Ex-Ante (Chiude prima di differenziare)
 equilibriaExAnte :: [(Type -> Signal, Signal -> Action)]
 equilibriaExAnte = solveGame players (plugExAnte prior payoffs gameArena)
 
--- B. Equilibrio Ex-Post (Differenzia, poi chiude con oracolo onnisciente)
 equilibriaExPost :: [(Type -> Signal, Signal -> Action)]
 equilibriaExPost = solveGame players (plugExPost prior payoffs gameArenaDiff)
 
--- C. Equilibrio Interim (Differenzia, poi chiude con oracolo Bayesiano condizionato)
 equilibriaInterim :: [(Type -> Signal, Signal -> Action)]
 equilibriaInterim = solveGame players (plugInterim prior payoffs gameArenaDiff)
