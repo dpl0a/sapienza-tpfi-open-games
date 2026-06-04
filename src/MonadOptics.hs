@@ -231,7 +231,7 @@ plugExAnte prior k arena =
 priorOpticDiff :: (Monad m) => m (theta, x) -> MonadOptic m () () (theta, x) (theta, x -> m s)
 priorOpticDiff prior = monadNonPara 
   (\() -> prior)
-  (\() _ -> return ()) -- Assorbe il gradiente (theta, x -> m s) e lo scarta
+  (\() _ -> return ())
 
 payoffOpticDiff :: (Monad m) => (theta -> y -> m r) -> MonadOptic m (theta, y) (theta, y -> m r) () ()
 payoffOpticDiff k = monadNonPara 
@@ -261,9 +261,9 @@ plugExPost prior k (MkOptic play coplay) = MkOptic
 plugInterim 
   :: (MonadCondition m, Eq obs, Ord theta) 
   => m (theta, x) 
-  -> (obs -> m theta)  -- Credenze off-path di fallback
-  -> (y -> obs)        -- Estrattore dell'osservazione
-  -> (r -> r -> r)     -- [NUOVO] Combinatore: r_actual -> r_post -> r_merged
+  -> (obs -> m theta)
+  -> (y -> obs)
+  -> (r -> r -> r)
   -> (theta -> y -> m r)
   -> ParaMonadOptic m p (p -> m q) x (x -> m s) y (y -> m r) 
   -> ParaMonadOptic m p (p -> m q) () (() -> m ()) () (() -> m ())
@@ -311,3 +311,9 @@ solveGame players pluggedUniverse =
            isEqPredicate <- selectionFunc p
            return (isEqPredicate p)
        ) allValues
+
+
+informationBarrier :: (Monad m) => (state -> obs) -> MonadOptic m state s obs s
+informationBarrier getObs = monadNonPara
+  (\state -> return (getObs state))
+  (\_ statePayoff -> return statePayoff)
