@@ -16,7 +16,7 @@ Si consiglia inoltre di installare e utilizzare [direnv](https://direnv.net/) e 
 
 ### Compositional Game Theory
 - Neil Ghani, Jules Hedges, Viktor Winschel, Philipp Zahn - Compositional game theory [[arXiv]](https://arxiv.org/abs/1603.04641)
-- Joe Bolt, Jules Hedges, Philipp Zahn - Bayesian open games [[arXiv]](https://arxiv.org/abs/1910.03656v2) **ATTENZIONE: Questi 2 paper usano una rappresentazione diversa di Open Game rispetto a quella moderna.**
+- Joe Bolt, Jules Hedges, Philipp Zahn - Bayesian open games [[arXiv]](https://arxiv.org/abs/1910.03656v2) **ATTENZIONE: Questo paper e il precedente usano una rappresentazione diversa di Open Game rispetto a quella moderna. La rappresentazione dell'arena vista a lezione deriva da:**
 - Matteo Capucci, Neil Ghani, Jérémy Ledent, Fredrik Nordvall Forsberg - Translating Extensive Form Games to Open Games with Agency [[arXiv]](https://arxiv.org/abs/2105.06763)
 - Matteo Capucci - Diegetic Representation of Feedback in Open Games [[arXiv]](https://arxiv.org/abs/2206.12338) **ATTENZIONE: Questo paper ha una presentazione sbagliata della reverse derivative di lenti parametriche vista a lezione, è interessante per capire il contesto e il ragionamento ma potrebbe confondervi.**
 
